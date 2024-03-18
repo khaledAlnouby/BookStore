@@ -28,6 +28,7 @@ public class client extends Thread {
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
+
             String inputLine;
             while ((inputLine = in.readLine()) != null) {
                 System.out.println("Received from client: " + inputLine);
@@ -77,7 +78,10 @@ public class client extends Thread {
                         break;
                     case "LIST_BOOKS":
                         // Mock: List all books in inventory
-                        listBooks();
+//                        out.println("LIST_BOOKS");
+//                        receiveBookList(in);
+                        Server.sendBookList(out);
+
                         break;
                     case "SUBMIT_REQUEST":
                         // Mock: Add request to pending list
@@ -110,18 +114,21 @@ public class client extends Thread {
                         break;
                     case "BROWSE_BOOKS":
                         // Browse books
-                        browseBooks();
+//                        browseBooks();
                         break;
                     case "SEARCH_BOOKS":
-                        // Search for books
+                        // Send search query to the server
                         String query = tokens[1];
+                        System.out.println("Received search query: " + query);
                         searchBooks(query);
                         break;
-//                    case "VIEW_DETAILS":
-//                        // View details of a specific book
-//                        int bookkId = Integer.parseInt(tokens[1]);
-//                        viewBookDetails(bookkId);
-//                        break;
+                    case "VIEW_DETAILS":
+                        // Send book ID to the server
+                        int bookkId = Integer.parseInt(tokens[1]);
+                        viewBookDetails(bookkId, out);
+                        break;
+
+
                     default:
                         out.println("Unknown command: " + command);
                         break;
@@ -136,27 +143,28 @@ public class client extends Thread {
         }
     }
 
-    private void browseBooks() {
-        for (Book book : bookInventory.values()) {
-            out.println(book.toString());
-        }
-    }
     private void searchBooks(String query) {
+        System.out.println("Received search query: " + query);
         StringBuilder response = new StringBuilder();
+        boolean found = false;
         for (Book book : bookInventory.values()) {
+            System.out.println("Checking book: " + book.getTitle() + " - " + book.getAuthor() + " - " + book.getGenre());
             if (book.getTitle().toLowerCase().contains(query.toLowerCase()) ||
                     book.getAuthor().toLowerCase().contains(query.toLowerCase()) ||
                     book.getGenre().toLowerCase().contains(query.toLowerCase())) {
                 response.append(book.toString()).append("\n");
+                found = true;
             }
         }
-        if (response.length() == 0) {
-            out.println("No books found matching the query.");
+        if (!found) {
+            System.out.println("No books found matching the query: " + query);
         } else {
-            out.println(response.toString());
+            System.out.println("Books found matching the query: " + query);
+            System.out.println(response.toString());
         }
     }
-    private void viewBookDetails(int bookId) {
+
+    static void viewBookDetails(int bookId, PrintWriter out) {
         Book book = bookInventory.get(bookId);
         if (book != null) {
             out.println(book.toString());
@@ -164,17 +172,23 @@ public class client extends Thread {
             out.println("Book with ID " + bookId + " not found.");
         }
     }
+
+    //    private void viewBookDetails(int bookId) {
+//        Book book = bookInventory.get(bookId);
+//        if (book != null) {
+//            out.println(book.toString());
+//        } else {
+//            out.println("Book with ID " + bookId + " not found.");
+//        }
+//    }
     private void addBook(String title, String author, String genre, double price, int quantity) {
         Book book = new Book(title, author, genre, price, quantity);
         bookInventory.put(bookIdCounter++, book);
 
     }
 
-    private void listBooks() {
-        for (Map.Entry<Integer, Book> entry : bookInventory.entrySet()) {
-            out.println(entry.getValue().getTitle() + " by " + entry.getValue().getAuthor());
-        }
-    }
+
+
 
     private boolean authenticateUser(String username, String password) {
         String storedPassword = userCredentials.get(username);
@@ -203,6 +217,7 @@ public class client extends Thread {
 
 
 
+
     public static void main(String[] args) {
         final String serverAddress = "localhost";
         final int serverPort = 8000;
@@ -220,7 +235,10 @@ public class client extends Thread {
                 String response = in.readLine();
 
                 System.out.println("Response from server: " + response); // Print response for all inputs
-                if (response.startsWith("Library Statistics:")) {
+                if (response.equals("LIST_BOOKS")) {
+                    // Call the sendBookList method to receive and print the list of books
+                    receiveBookList(in);
+                } else if (response.startsWith("Library Statistics:")) {
                     // Print library statistics received from the server
                     String line;
                     while (!(line = in.readLine()).isEmpty()) {
@@ -232,6 +250,14 @@ public class client extends Thread {
         } catch (IOException e) {
             System.err.println("Error communicating with server: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    private static void receiveBookList(BufferedReader in) throws IOException {
+        System.out.println("Books available in inventory:");
+        String bookInfo;
+        while (!(bookInfo = in.readLine()).isEmpty()) {
+            System.out.println(bookInfo);
         }
     }
 }
