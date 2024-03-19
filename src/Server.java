@@ -6,6 +6,8 @@ public class Server {
     private static final int PORT = 8000;
     private static Map<String, String> userCredentials = new HashMap<>();
     private static Map<Integer, Book> bookInventory = new HashMap<>();
+    static List<Request> pendingRequests = new ArrayList<>();
+    private static int requestIdCounter = 1; // Initial request ID counter value
     private static int borrowedBooksCount = 0;
     private static int availableBooksCount = 0;
     private static int acceptedRequestsCount = 0;
@@ -51,7 +53,7 @@ public class Server {
         return userCredentials.containsKey(username) && userCredentials.get(username).equals(password);
     }
 
-    static class ClientHandler extends Thread {
+    public static class ClientHandler extends Thread {
         private String loggedInUsername; // Store the username of the logged-in user
         private Socket clientSocket;
         private PrintWriter out;
@@ -162,6 +164,66 @@ public class Server {
                                 out.println("ERROR 404: Book not found.");
                             }
                             break;
+                        case "SUBMIT_REQUEST":
+                            // Extract request details from tokens
+                            String borrower = tokens[1];
+                            String lender = tokens[2];
+                            String requestedBookTitle = tokens[3];
+
+                            // Find the book in the inventory based on the title
+                            Book requestedBook = null;
+                            for (Book book : bookInventory.values()) {
+                                if (book.getTitle().equalsIgnoreCase(requestedBookTitle)) {
+                                    requestedBook = book;
+                                    break;
+                                }
+                            }
+
+                            // Check if the requested book was found
+                            if (requestedBook != null) {
+                                // Create and store the request
+                                int requestId = requestIdCounter++; // Increment the request ID counter
+                                Request request = new Request(requestId, borrower, lender, requestedBook, "pending");
+                                pendingRequests.add(request); // Add the request to the pendingRequests list
+                                out.println("REQUEST_SUBMITTED " + requestId);
+                            } else {
+                                out.println("ERROR 404: Requested book not found."); // Notify client if the book was not found
+                            }
+                            break;
+
+                        case "ACCEPT_REQUEST":
+                            // Extract request details from tokens
+                            String borrowerToAccept = tokens[1];
+                            int requestId = Integer.parseInt(tokens[2]);
+
+                            // Find the request in pending requests
+                            for (Request req : pendingRequests) {
+                                if (req.getBorrower().equals(borrowerToAccept) && req.getId() == requestId) {
+                                    req.setStatus("accepted");
+                                    pendingRequests.remove(req); // Remove the request from the pendingRequests list
+                                    out.println("REQUEST_ACCEPTED");
+                                    // Start chat or notify borrower
+                                    break;
+                                }
+                            }
+                            break;
+
+                        case "REJECT_REQUEST":
+                            // Extract request details from tokens
+                            String borrowerToReject = tokens[1];
+                            int requestIdToReject = Integer.parseInt(tokens[2]);
+
+                            // Find the request in pending requests
+                            for (Request req : pendingRequests) {
+                                if (req.getBorrower().equals(borrowerToReject) && req.getId() == requestIdToReject) {
+                                    req.setStatus("rejected");
+                                    pendingRequests.remove(req); // Remove the request from the pendingRequests list
+                                    out.println("REQUEST_REJECTED");
+                                    // Notify borrower
+                                    break;
+                                }
+                            }
+                            break;
 
                     }
 
@@ -258,4 +320,7 @@ public class Server {
             out.println(response.toString().trim()); // Send the response
         }
     }
+
+
+
 }

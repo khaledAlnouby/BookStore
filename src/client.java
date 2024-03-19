@@ -33,9 +33,9 @@ public class client {
                 System.out.println("Response from server: " + response);
 
                 // If the response indicates list of books, print them
-                if (response.equals("LIST_BOOKS")) {
-                    printBookList(in);
-                }
+//                if (response.equals("LIST_BOOKS")) {
+//                    printBookList(in);
+//                }
             }
 
 
