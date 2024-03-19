@@ -216,3 +216,7 @@ public class Server {
         }
     }
 }
+
+    public static Server getInstance() {
+        return g;
+    }
