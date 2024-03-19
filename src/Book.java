@@ -70,6 +70,12 @@ public class Book {
         }
         this.author = author;
     }
+    public void setLenderUsername(String lenderUsername) {
+        if (lenderUsername == null || lenderUsername.isEmpty()) {
+            throw new IllegalArgumentException("Author cannot be null or empty");
+        }
+        this.lenderUsername = lenderUsername;
+    }
 
     public void setGenre(String genre) {
         this.genre = genre;
@@ -88,6 +94,5 @@ public class Book {
         }
         this.quantity = quantity;
     }
-
 
 }

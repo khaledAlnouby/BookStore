@@ -52,6 +52,7 @@ public class Server {
     }
 
     static class ClientHandler extends Thread {
+        private String loggedInUsername; // Store the username of the logged-in user
         private Socket clientSocket;
         private PrintWriter out;
         private BufferedReader in;
@@ -90,6 +91,7 @@ public class Server {
                         case "LOGIN":
                             String enteredUsername = tokens[1];
                             String enteredPassword = tokens[2];
+                            loggedInUsername = tokens[1]; // Store the username of the logged-in user
                             if (authenticateUser(enteredUsername, enteredPassword)) {
                                 out.println("Login successful.");
                             } else {
@@ -120,8 +122,49 @@ public class Server {
                             // Handle viewing detailed information
                             viewBookDetails(tokens);
                             break;
+                        case "ADD_BOOK":
+                            // Extract book details from tokens
+                            String title = tokens[1];
+                            String author = tokens[2];
+                            String genre = tokens[3];
+                            double price = Double.parseDouble(tokens[4]);
+                            int quantity = Integer.parseInt(tokens[5]);
+
+                            // Create a new Book object with user's username as lender
+                            Book newBook = new Book(title, author, genre, price, quantity);
+                            newBook.setLenderUsername(loggedInUsername); // Store the username of the logged-in user); // Set lender username
+                            bookInventory.put(bookIdCounter++, newBook);
+                            // Send confirmation message to the client
+                            out.println("BOOK_ADDED");
+                            break;
+                        case "REMOVE_BOOK":
+                            // Extract book details from tokens
+                            String titleToRemove = tokens[1];
+                            String authorToRemove = tokens[2];
+
+                            // Iterate over the book inventory to find the book to remove
+                            boolean bookRemoved = false;
+                            for (Iterator<Map.Entry<Integer, Book>> iterator = bookInventory.entrySet().iterator(); iterator.hasNext(); ) {
+                                Map.Entry<Integer, Book> entry = iterator.next();
+                                Book book = entry.getValue();
+                                if (book.getTitle().equalsIgnoreCase(titleToRemove) && book.getAuthor().equalsIgnoreCase(authorToRemove)) {
+                                    // Remove the book from the inventory
+                                    iterator.remove();
+                                    bookRemoved = true;
+                                    break; // No need to continue searching once the book is found and removed
+                                }
+                            }
+
+                            // Send response to the client based on whether the book was removed or not
+                            if (bookRemoved) {
+                                out.println("BOOK_REMOVED");
+                            } else {
+                                out.println("ERROR 404: Book not found.");
+                            }
+                            break;
 
                     }
+
                 }
             } catch (IOException e) {
                 System.err.println("Error handling client request: " + e.getMessage());
@@ -216,7 +259,3 @@ public class Server {
         }
     }
 }
-
-    public static Server getInstance() {
-        return g;
-    }
