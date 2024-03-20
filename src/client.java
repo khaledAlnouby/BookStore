@@ -15,8 +15,8 @@ public class client {
              BufferedReader stdIn = new BufferedReader(new InputStreamReader(System.in))) {
 
             System.out.println("Connected to server");
+            boolean requestHistoryReceived = false;
 
-            // Start the client loop
             String userInput;
             while (true) {
                 // Read user input
@@ -32,24 +32,21 @@ public class client {
                 String response = in.readLine();
                 System.out.println("Response from server: " + response);
 
-                // If the response indicates list of books, print them
-//                if (response.equals("LIST_BOOKS")) {
-//                    printBookList(in);
-//                }
+                // If the response indicates that the request history has been received,
+                // prompt the user for further input
+                if (response.startsWith("REQUEST_HISTORY")) {
+                    // Read and print each line of the request history
+                    String line;
+                    while (!(line = in.readLine()).isEmpty()) {
+                        System.out.println("Response from server: " + line);
+                    }
+                    System.out.println("Enter your next command:");
+                }
             }
-
 
         } catch (IOException e) {
             System.err.println("Error communicating with server: " + e.getMessage());
             e.printStackTrace();
-        }
-    }
-
-    private static void printBookList(BufferedReader in) throws IOException {
-        System.out.println("Books available in inventory:");
-        String bookInfo;
-        while ((bookInfo = in.readLine()) != null && !bookInfo.isEmpty()) {
-            System.out.println(bookInfo);
         }
     }
 }

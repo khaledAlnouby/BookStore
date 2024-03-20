@@ -7,6 +7,8 @@ public class Server {
     private static Map<String, String> userCredentials = new HashMap<>();
     private static Map<Integer, Book> bookInventory = new HashMap<>();
     static List<Request> pendingRequests = new ArrayList<>();
+    private static List<Request> acceptedRequests = new ArrayList<>();
+    private static List<Request> rejectedRequests = new ArrayList<>();
     private static int requestIdCounter = 1; // Initial request ID counter value
     private static int borrowedBooksCount = 0;
     private static int availableBooksCount = 0;
@@ -183,7 +185,7 @@ public class Server {
                             if (requestedBook != null) {
                                 // Create and store the request
                                 int requestId = requestIdCounter++; // Increment the request ID counter
-                                Request request = new Request(requestId, borrower, lender, requestedBook, "pending");
+                                Request request = new Request(requestId, borrower, lender, requestedBook, "pending",out,in);
                                 pendingRequests.add(request); // Add the request to the pendingRequests list
                                 out.println("REQUEST_SUBMITTED " + requestId);
                             } else {
@@ -197,12 +199,20 @@ public class Server {
                             int requestId = Integer.parseInt(tokens[2]);
 
                             // Find the request in pending requests
-                            for (Request req : pendingRequests) {
+                            Iterator<Request> iteratorAccept = pendingRequests.iterator();
+                            while (iteratorAccept.hasNext()) {
+                                Request req = iteratorAccept.next();
                                 if (req.getBorrower().equals(borrowerToAccept) && req.getId() == requestId) {
                                     req.setStatus("accepted");
-                                    pendingRequests.remove(req); // Remove the request from the pendingRequests list
+                                    iteratorAccept.remove(); // Remove the request from the pendingRequests list
+                                    acceptedRequests.add(req); // Add the request to the acceptedRequests list
                                     out.println("REQUEST_ACCEPTED");
-                                    // Start chat or notify borrower
+
+                                    // Start chat session
+                                    Chat chat = new Chat(req.getBorrower(), req.getLender(), out, in);
+                                    req.setChat(chat);
+                                    chat.startChat();
+
                                     break;
                                 }
                             }
@@ -214,16 +224,24 @@ public class Server {
                             int requestIdToReject = Integer.parseInt(tokens[2]);
 
                             // Find the request in pending requests
-                            for (Request req : pendingRequests) {
+                            Iterator<Request> iteratorReject = pendingRequests.iterator();
+                            while (iteratorReject.hasNext()) {
+                                Request req = iteratorReject.next();
                                 if (req.getBorrower().equals(borrowerToReject) && req.getId() == requestIdToReject) {
                                     req.setStatus("rejected");
-                                    pendingRequests.remove(req); // Remove the request from the pendingRequests list
+                                    iteratorReject.remove(); // Remove the request from the pendingRequests list
+                                    rejectedRequests.add(req); // Add the request to the rejectedRequests list
                                     out.println("REQUEST_REJECTED");
+
                                     // Notify borrower
                                     break;
                                 }
                             }
                             break;
+                        case "REQUEST_HISTORY":
+                            sendRequestHistory(loggedInUsername);
+                            break;
+
 
                     }
 
@@ -239,6 +257,32 @@ public class Server {
                 }
             }
         }
+
+
+        private void sendRequestHistory(String username) {
+            StringBuilder response = new StringBuilder("REQUEST_HISTORY\n");
+            // Iterate over pending requests
+            for (Request req : pendingRequests) {
+                if (req.getBorrower().equals(username) || req.getLender().equals(username)) {
+                    response.append(req.getId()).append(" ").append(req.getStatus()).append("\n");
+                }
+            }
+            // Iterate over accepted requests
+            for (Request req : acceptedRequests) {
+                if (req.getBorrower().equals(username) || req.getLender().equals(username)) {
+                    response.append(req.getId()).append(" ").append(req.getStatus()).append("\n");
+                }
+            }
+            // Iterate over rejected requests
+            for (Request req : rejectedRequests) {
+                if (req.getBorrower().equals(username) || req.getLender().equals(username)) {
+                    response.append(req.getId()).append(" ").append(req.getStatus()).append("\n");
+                }
+            }
+            out.println(response.toString().trim());
+        }
+
+
         private void searchBooksByTitle(String[] tokens) {
             // Extract the title from tokens
             String titleToSearch = tokens[1];
@@ -309,6 +353,7 @@ public class Server {
             }
             out.println(response.toString().trim()); // Send the response
         }
+
 
 
 

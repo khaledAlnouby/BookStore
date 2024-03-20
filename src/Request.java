@@ -1,3 +1,8 @@
+import java.io.BufferedReader;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
+
 public class Request {
     private int id; // Unique identifier for the request
     private String borrower;
@@ -5,14 +10,24 @@ public class Request {
     private Book requestedBook;
     private String status;
 
-    public Request(int id, String borrower, String lender, Book requestedBook, String status) {
+
+    private Chat chat;
+
+    public Request(int id, String borrower, String lender, Book requestedBook, String status, PrintWriter out, BufferedReader in) {
         this.id = id;
         this.borrower = borrower;
         this.lender = lender;
         this.requestedBook = requestedBook;
         this.status = status;
+        this.chat= new Chat(borrower,lender,out,in);
+    }
+    public void setChat(Chat message) {
+        this.chat= message;
     }
 
+    public Chat getChat() {
+        return this.chat ;
+    }
     // Getters and Setters
     public int getId() {
         return id;
