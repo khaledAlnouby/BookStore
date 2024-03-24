@@ -49,18 +49,6 @@ public class Server {
         }
 }
 
-
-
-    private static void addBook(String title, String author, String genre, double price, int quantity) {
-        Book book = new Book(title, author, genre, price, quantity);
-        bookInventory.put(bookIdCounter++, book);
-        availableBooksCount++; // Increment available books count after adding a book
-    }
-
-    static boolean authenticateUser(String username, String password) {
-        return userCredentials.containsKey(username) && userCredentials.get(username).equals(password);
-    }
-
     public static class ClientHandler extends Thread {
         private String loggedInUsername; // Store the username of the logged-in user
         private Socket clientSocket;
@@ -112,10 +100,6 @@ public class Server {
                         case "LIST_BOOKS":
                             sendBookListFromDatabase();
                             break;
-                        case "SEARCH_TITLE":
-                            // Handle searching by title
-                            searchBooksByTitle(tokens[1]);
-                            break;
                         case "SEARCH_AUTHOR":
                             // Handle searching by author
                             searchBooksByAuthor(tokens[1]);
@@ -128,6 +112,10 @@ public class Server {
                         case "VIEW_DETAILS":
                             // Handle viewing detailed information
                             viewBookDetails(tokens);
+                            break;
+                        case "VIEW_DETAILS_TITLE":
+                            // Handle viewing detailed information by book title
+                            viewBookDetailsByTitle(tokens);
                             break;
                         case "ADD_BOOK":
                             // Extract book details from tokens
@@ -358,20 +346,6 @@ public class Server {
                 out.println("Error fetching book list from the database.");
             }
         }
-
-        private void searchBooksByTitle(String titleToSearch) {
-            try {
-                String sql = "SELECT * FROM books WHERE title LIKE ?";
-                PreparedStatement statement = connection.prepareStatement(sql);
-                statement.setString(1, "%" + titleToSearch + "%");
-                ResultSet resultSet = statement.executeQuery();
-                sendMatchingBooks(resultSet);
-            } catch (SQLException e) {
-                e.printStackTrace();
-                out.println("Error occurred during book search by title.");
-            }
-        }
-
         private void searchBooksByAuthor(String authorToSearch) {
             try {
                 String sql = "SELECT * FROM books WHERE author LIKE ?";
@@ -475,6 +449,40 @@ public class Server {
                 out.println("ERROR: Invalid command format for viewing book details.");
             }
         }
+        private void viewBookDetailsByTitle(String[] tokens) {
+            try {
+                // Extract the book title from tokens
+                String titleToSearch = tokens[1];
+
+                // Query the database to get book details
+                String query = "SELECT * FROM books WHERE title = ?";
+                PreparedStatement statement = connection.prepareStatement(query);
+                statement.setString(1, titleToSearch);
+                ResultSet resultSet = statement.executeQuery();
+
+                if (resultSet.next()) {
+                    // Book found, send detailed information to the client
+                    String title = resultSet.getString("title");
+                    String author = resultSet.getString("author");
+                    String genre = resultSet.getString("genre");
+                    double price = resultSet.getDouble("price");
+                    int quantity = resultSet.getInt("quantity");
+
+                    out.println("BOOK_DETAILS Title: " + title + ", Author: " + author +
+                            ", Genre: " + genre + ", Price: $" + price + ", Quantity: " + quantity);
+                } else {
+                    // Book not found
+                    out.println("ERROR 404: Book not found.");
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("ERROR: Failed to fetch book details from the database.");
+            } catch (ArrayIndexOutOfBoundsException e) {
+                // Handle invalid input format
+                out.println("ERROR: Invalid command format for viewing book details.");
+            }
+        }
+
 
     }
 }
