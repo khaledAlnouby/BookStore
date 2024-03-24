@@ -1,8 +1,16 @@
 import java.io.*;
 import java.net.*;
+import java.sql.*;
 import java.util.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 public class Server {
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/bookstore";
+    private static final String DB_USER = "root";
+
+    private static Connection connection;
     private static final int PORT = 8000;
     private static Map<String, String> userCredentials = new HashMap<>();
     private static Map<Integer, Book> bookInventory = new HashMap<>();
@@ -17,33 +25,31 @@ public class Server {
     private static int pendingRequestsCount = 0;
     private static int bookIdCounter = 1;
 
-    public static void main(String[] args) {
-        // Initialize some test data
-        userCredentials.put("user1", "password1");
-        userCredentials.put("user2", "password2");
-        addInitialBooks();
+    public static void main(String[] args) throws IOException {
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Server started. Listening on port " + PORT);
+
+            try (Connection connection = DriverManager.getConnection(DB_URL , DB_USER,null)){
+                System.out.println("Connected to database.");
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket);
 
                 // Handle client in a separate thread
-                new ClientHandler(clientSocket).start();
+                new ClientHandler(clientSocket, connection).start();
             }
         } catch (IOException e) {
             System.err.println("Error starting the server: " + e.getMessage());
             e.printStackTrace();
+        } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
         }
-    }
+}
 
-    private static void addInitialBooks() {
-        // Add some initial books to the inventory
-        addBook("Book1", "Author1", "Fiction", 10.99, 5);
-        addBook("Book2", "Author2", "Science", 15.99, 3);
-    }
+
 
     private static void addBook(String title, String author, String genre, double price, int quantity) {
         Book book = new Book(title, author, genre, price, quantity);
@@ -60,9 +66,12 @@ public class Server {
         private Socket clientSocket;
         private PrintWriter out;
         private BufferedReader in;
+        private Connection connection; // Add connection field
 
-        public ClientHandler(Socket socket) {
+
+        public ClientHandler(Socket socket ,Connection connection) {
             this.clientSocket = socket;
+            this.connection = connection;
         }
 
         @Override
@@ -85,43 +94,37 @@ public class Server {
                             String name = tokens[1];
                             String newUsername = tokens[2];
                             String newPassword = tokens[3];
-                            if (userCredentials.containsKey(newUsername)) {
-                                out.println("ERROR 409: Username already exists. Please choose another one.");
-                            } else {
-                                userCredentials.put(newUsername, newPassword);
-                                out.println("Registration successful.");
-                            }
+                            registerUser(newUsername, newPassword);
                             break;
                         case "LOGIN":
                             String enteredUsername = tokens[1];
                             String enteredPassword = tokens[2];
-                            loggedInUsername = tokens[1]; // Store the username of the logged-in user
-                            if (authenticateUser(enteredUsername, enteredPassword)) {
+                            loggedInUsername = enteredUsername; // Store the username of the logged-in user
+
+                            // Check credentials in the database
+                            if (checkCredentials(enteredUsername, enteredPassword)) {
                                 out.println("Login successful.");
                             } else {
-                                if (!userCredentials.containsKey(enteredUsername)) {
-                                    out.println("ERROR 404: not found.");
-                                } else {
-                                    out.println("ERROR 401: Invalid username or password Unauthorized.");
-                                }
+                                out.println("ERROR 401: Invalid username or password Unauthorized.");
                             }
                             break;
+
                         case "LIST_BOOKS":
-                            sendBookList();
-                            // Add other cases for book browsing, searching, adding, removing, etc.
+                            sendBookListFromDatabase();
                             break;
                         case "SEARCH_TITLE":
                             // Handle searching by title
-                            searchBooksByTitle(tokens);
+                            searchBooksByTitle(tokens[1]);
                             break;
                         case "SEARCH_AUTHOR":
                             // Handle searching by author
-                            searchBooksByAuthor(tokens);
+                            searchBooksByAuthor(tokens[1]);
                             break;
                         case "SEARCH_GENRE":
                             // Handle searching by genre
-                            searchBooksByGenre(tokens);
+                            searchBooksByGenre(tokens[1]);
                             break;
+
                         case "VIEW_DETAILS":
                             // Handle viewing detailed information
                             viewBookDetails(tokens);
@@ -134,38 +137,27 @@ public class Server {
                             double price = Double.parseDouble(tokens[4]);
                             int quantity = Integer.parseInt(tokens[5]);
 
-                            // Create a new Book object with user's username as lender
-                            Book newBook = new Book(title, author, genre, price, quantity);
-                            newBook.setLenderUsername(loggedInUsername); // Store the username of the logged-in user); // Set lender username
-                            bookInventory.put(bookIdCounter++, newBook);
-                            // Send confirmation message to the client
-                            out.println("BOOK_ADDED");
+                            // Insert the book into the database
+                            if (addBookToDatabase(title, author, genre, price, quantity, loggedInUsername)) {
+                                out.println("BOOK_ADDED");
+                            } else {
+                                out.println("Error adding book to the database.");
+                            }
                             break;
+
                         case "REMOVE_BOOK":
                             // Extract book details from tokens
                             String titleToRemove = tokens[1];
                             String authorToRemove = tokens[2];
 
-                            // Iterate over the book inventory to find the book to remove
-                            boolean bookRemoved = false;
-                            for (Iterator<Map.Entry<Integer, Book>> iterator = bookInventory.entrySet().iterator(); iterator.hasNext(); ) {
-                                Map.Entry<Integer, Book> entry = iterator.next();
-                                Book book = entry.getValue();
-                                if (book.getTitle().equalsIgnoreCase(titleToRemove) && book.getAuthor().equalsIgnoreCase(authorToRemove)) {
-                                    // Remove the book from the inventory
-                                    iterator.remove();
-                                    bookRemoved = true;
-                                    break; // No need to continue searching once the book is found and removed
-                                }
-                            }
-
-                            // Send response to the client based on whether the book was removed or not
-                            if (bookRemoved) {
-                                out.println("BOOK_REMOVED");
+                            // Remove the book from the database
+                            if (removeBookFromDatabase(titleToRemove, authorToRemove)) {
+                                out.println("BOOK_REMOVED Successfully ");
                             } else {
-                                out.println("ERROR 404: Book not found.");
+                                out.println("Error removing book from the database.");
                             }
                             break;
+
                         case "SUBMIT_REQUEST":
                             // Extract request details from tokens
                             String borrower = tokens[1];
@@ -258,6 +250,175 @@ public class Server {
             }
         }
 
+        private void registerUser(String username, String password) {
+            try {
+                // Check if the username already exists in the database
+                String checkQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
+                PreparedStatement checkStatement = connection.prepareStatement(checkQuery);
+                checkStatement.setString(1, username);
+                ResultSet resultSet = checkStatement.executeQuery();
+                resultSet.next();
+                int count = resultSet.getInt(1);
+                if (count > 0) {
+                    out.println("ERROR 409: Username already exists. Please choose another one.");
+                    return;
+                }
+
+                // If the username is unique, proceed with registration
+                String insertQuery = "INSERT INTO users (username, password) VALUES (?, ?)";
+                PreparedStatement statement = connection.prepareStatement(insertQuery);
+                statement.setString(1, username);
+                statement.setString(2, password);
+                int rowsAffected = statement.executeUpdate();
+
+                if (rowsAffected > 0) {
+                    out.println("Registration successful.");
+                } else {
+                    out.println("Error occurred during registration.");
+                }
+            } catch (SQLException e) {
+                System.err.println("SQL Error: " + e.getMessage());
+                e.printStackTrace();
+                out.println("Error occurred during registration.");
+            }
+        }
+
+        private boolean checkCredentials(String username, String password) {
+            try {
+                String sql = "SELECT * FROM users WHERE username = ? AND password = ?";
+                PreparedStatement statement = connection.prepareStatement(sql);
+                statement.setString(1, username);
+                statement.setString(2, password);
+                ResultSet resultSet = statement.executeQuery();
+
+                // If there is at least one row, the credentials are valid
+                return resultSet.next();
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return false; // Return false in case of any SQL error
+            }
+        }
+        private boolean addBookToDatabase(String title, String author, String genre, double price, int quantity, String lenderUsername) {
+            try {
+                String sql = "INSERT INTO books (title, author, genre, price, quantity, lender_username) VALUES (?, ?, ?, ?, ?, ?)";
+                PreparedStatement statement = connection.prepareStatement(sql);
+                statement.setString(1, title);
+                statement.setString(2, author);
+                statement.setString(3, genre);
+                statement.setDouble(4, price);
+                statement.setInt(5, quantity);
+                statement.setString(6, lenderUsername);
+
+                int rowsAffected = statement.executeUpdate();
+                return rowsAffected > 0;
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return false; // Return false in case of any SQL error
+            }
+        }
+        private boolean removeBookFromDatabase(String title, String author) {
+            try {
+                String sql = "DELETE FROM books WHERE title = ? AND author = ?";
+                PreparedStatement statement = connection.prepareStatement(sql);
+                statement.setString(1, title);
+                statement.setString(2, author);
+
+                int rowsAffected = statement.executeUpdate();
+                return rowsAffected > 0;
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return false; // Return false in case of any SQL error
+            }
+        }
+
+        private void sendBookListFromDatabase() {
+            try {
+                String sql = "SELECT * FROM books";
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(sql);
+
+                StringBuilder response = new StringBuilder("LIST_BOOKS\n"); // Start of response
+                while (resultSet.next()) {
+                    String title = resultSet.getString("title");
+                    String author = resultSet.getString("author");
+                    String genre = resultSet.getString("genre");
+                    double price = resultSet.getDouble("price");
+                    int quantity = resultSet.getInt("quantity");
+                    String lenderUsername = resultSet.getString("lender_username");
+
+                    response.append("Title: ").append(title).append(", Author: ").append(author)
+                            .append(", Genre: ").append(genre).append(", Price: $").append(price)
+                            .append(", Quantity: ").append(quantity).append(", Lender: ").append(lenderUsername)
+                            .append("\n");
+                }
+
+                out.println(response.toString().trim()); // Send the response
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("Error fetching book list from the database.");
+            }
+        }
+
+        private void searchBooksByTitle(String titleToSearch) {
+            try {
+                String sql = "SELECT * FROM books WHERE title LIKE ?";
+                PreparedStatement statement = connection.prepareStatement(sql);
+                statement.setString(1, "%" + titleToSearch + "%");
+                ResultSet resultSet = statement.executeQuery();
+                sendMatchingBooks(resultSet);
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("Error occurred during book search by title.");
+            }
+        }
+
+        private void searchBooksByAuthor(String authorToSearch) {
+            try {
+                String sql = "SELECT * FROM books WHERE author LIKE ?";
+                PreparedStatement statement = connection.prepareStatement(sql);
+                statement.setString(1, "%" + authorToSearch + "%");
+                ResultSet resultSet = statement.executeQuery();
+                sendMatchingBooks(resultSet);
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("Error occurred during book search by author.");
+            }
+        }
+
+        private void searchBooksByGenre(String genreToSearch) {
+            try {
+                String sql = "SELECT * FROM books WHERE genre LIKE ?";
+                PreparedStatement statement = connection.prepareStatement(sql);
+                statement.setString(1, "%" + genreToSearch + "%");
+                ResultSet resultSet = statement.executeQuery();
+                sendMatchingBooks(resultSet);
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("Error occurred during book search by genre.");
+            }
+        }
+
+        private void sendMatchingBooks(ResultSet resultSet) {
+            try {
+                StringBuilder response = new StringBuilder("MATCHING_BOOKS\n");
+                while (resultSet.next()) {
+                    String title = resultSet.getString("title");
+                    String author = resultSet.getString("author");
+                    String genre = resultSet.getString("genre");
+                    double price = resultSet.getDouble("price");
+                    int quantity = resultSet.getInt("quantity");
+                    response.append("Title: ").append(title).append(", Author: ").append(author)
+                            .append(", Genre: ").append(genre).append(", Price: $").append(price)
+                            .append(", Quantity: ").append(quantity).append("\n");
+                }
+                out.println(response.toString().trim());
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("Error occurred while processing search results.");
+            }
+        }
+
+
 
         private void sendRequestHistory(String username) {
             StringBuilder response = new StringBuilder("REQUEST_HISTORY\n");
@@ -281,91 +442,39 @@ public class Server {
             }
             out.println(response.toString().trim());
         }
-
-
-        private void searchBooksByTitle(String[] tokens) {
-            // Extract the title from tokens
-            String titleToSearch = tokens[1];
-
-            // Search for books with matching title
-            List<Book> matchingBooks = new ArrayList<>();
-            for (Book book : bookInventory.values()) {
-                if (book.getTitle().equalsIgnoreCase(titleToSearch)) {
-                    matchingBooks.add(book);
-                }
-            }
-
-            // Send the list of matching books to the client
-            sendMatchingBooks(matchingBooks);
-        }
-        private void searchBooksByAuthor(String[] tokens) {
-            // Extract the author from tokens
-            String authorToSearch = tokens[1];
-
-            // Search for books with matching author
-            List<Book> matchingBooks = new ArrayList<>();
-            for (Book book : bookInventory.values()) {
-                if (book.getAuthor().equalsIgnoreCase(authorToSearch)) {
-                    matchingBooks.add(book);
-                }
-            }
-
-            // Send the list of matching books to the client
-            sendMatchingBooks(matchingBooks);
-        }
-        private void searchBooksByGenre(String[] tokens) {
-            // Extract the genre from tokens
-            String genreToSearch = tokens[1];
-
-            // Search for books with matching genre
-            List<Book> matchingBooks = new ArrayList<>();
-            for (Book book : bookInventory.values()) {
-                if (book.getGenre().equalsIgnoreCase(genreToSearch)) {
-                    matchingBooks.add(book);
-                }
-            }
-
-            // Send the list of matching books to the client
-            sendMatchingBooks(matchingBooks);
-        }
         private void viewBookDetails(String[] tokens) {
-            // Extract the book ID from tokens
-            int bookId = Integer.parseInt(tokens[1]);
+            try {
+                // Extract the book ID from tokens
+                int bookId = Integer.parseInt(tokens[1]);
 
-            // Find the book with the given ID
-            Book book = bookInventory.get(bookId);
+                // Query the database to get book details
+                String query = "SELECT * FROM books WHERE book_id = ?";
+                PreparedStatement statement = connection.prepareStatement(query);
+                statement.setInt(1, bookId);
+                ResultSet resultSet = statement.executeQuery();
 
-            // Send detailed information about the book to the client
-            if (book != null) {
-                out.println("BOOK_DETAILS " + book.toString());
-            } else {
-                out.println("ERROR 404: Book not found.");
-            }
-        }
-        private void sendMatchingBooks(List<Book> matchingBooks) {
-            StringBuilder response = new StringBuilder("MATCHING_BOOKS\n"); // Start of response
-            if (!matchingBooks.isEmpty()) {
-                for (Book book : matchingBooks) {
-                    response.append(book.toString()).append("\n"); // Append book details
+                if (resultSet.next()) {
+                    // Book found, send detailed information to the client
+                    String title = resultSet.getString("title");
+                    String author = resultSet.getString("author");
+                    String genre = resultSet.getString("genre");
+                    double price = resultSet.getDouble("price");
+                    int quantity = resultSet.getInt("quantity");
+
+                    out.println("BOOK_DETAILS Title: " + title + ", Author: " + author +
+                            ", Genre: " + genre + ", Price: $" + price + ", Quantity: " + quantity);
+                } else {
+                    // Book not found
+                    out.println("ERROR 404: Book not found.");
                 }
-            } else {
-                response.append("No books found matching the criteria.");
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("ERROR: Failed to fetch book details from the database.");
+            } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+                // Handle invalid input format
+                out.println("ERROR: Invalid command format for viewing book details.");
             }
-            out.println(response.toString().trim()); // Send the response
         }
 
-
-
-
-        private void sendBookList() {
-            StringBuilder response = new StringBuilder("LIST_BOOKS\n"); // Start of response
-            for (Book book : bookInventory.values()) {
-                response.append(book.toString()).append("\n"); // Append book details
-            }
-            out.println(response.toString().trim()); // Send the response
-        }
     }
-
-
-
 }

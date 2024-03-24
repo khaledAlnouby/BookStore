@@ -32,16 +32,7 @@ public class client {
                 String response = in.readLine();
                 System.out.println("Response from server: " + response);
 
-                // If the response indicates that the request history has been received,
-                // prompt the user for further input
-                if (response.startsWith("REQUEST_HISTORY")) {
-                    // Read and print each line of the request history
-                    String line;
-                    while (!(line = in.readLine()).isEmpty()) {
-                        System.out.println("Response from server: " + line);
-                    }
-                    System.out.println("Enter your next command:");
-                }
+
             }
 
         } catch (IOException e) {
