@@ -154,22 +154,23 @@ public class Server {
 
                             try {
                                 // Query the database to find the requested book by title
-                                String query = "SELECT * FROM books WHERE title = ?";
+                                String query = "SELECT book_id FROM books WHERE title = ?";
                                 PreparedStatement statement = connection.prepareStatement(query);
                                 statement.setString(1, requestedBookTitle);
                                 ResultSet resultSet = statement.executeQuery();
 
                                 if (resultSet.next()) {
-                                    // Book found, extract book details
+                                    // Book found, extract book ID
                                     int bookId = resultSet.getInt("book_id");
 
                                     // Create and store the request
-                                    String insertRequestQuery = "INSERT INTO requests (borrower_username, lender_username, book_id, status) VALUES (?, ?, ?, ?)";
+                                    String insertRequestQuery = "INSERT INTO requests (borrower_username, lender_username, book_id, book_title, status) VALUES (?, ?, ?, ?, ?)";
                                     PreparedStatement insertStatement = connection.prepareStatement(insertRequestQuery);
                                     insertStatement.setString(1, borrower);
                                     insertStatement.setString(2, lender);
                                     insertStatement.setInt(3, bookId);
-                                    insertStatement.setString(4, "pending");
+                                    insertStatement.setString(4, requestedBookTitle);
+                                    insertStatement.setString(5, "pending");
                                     int rowsAffected = insertStatement.executeUpdate();
 
                                     if (rowsAffected > 0) {
@@ -189,28 +190,35 @@ public class Server {
                             }
                             break;
 
+
                         case "ACCEPT_REQUEST":
                             // Extract request details from tokens
                             String borrowerToAccept = tokens[1];
                             int requestId = Integer.parseInt(tokens[2]);
 
-                            // Find the request in pending requests
-                            Iterator<Request> iteratorAccept = pendingRequests.iterator();
-                            while (iteratorAccept.hasNext()) {
-                                Request req = iteratorAccept.next();
-                                if (req.getBorrower().equals(borrowerToAccept) && req.getId() == requestId) {
-                                    req.setStatus("accepted");
-                                    iteratorAccept.remove(); // Remove the request from the pendingRequests list
-                                    acceptedRequests.add(req); // Add the request to the acceptedRequests list
+                            try {
+                                // Update the request status in the database
+                                String updateStatusQuery = "UPDATE requests SET status = 'accepted' WHERE borrower_username = ? AND request_id = ?";
+                                PreparedStatement updateStatement = connection.prepareStatement(updateStatusQuery);
+                                updateStatement.setString(1, borrowerToAccept);
+                                updateStatement.setInt(2, requestId);
+                                int rowsAffected = updateStatement.executeUpdate();
+
+                                if (rowsAffected > 0) {
+                                    // Request status updated successfully
                                     out.println("REQUEST_ACCEPTED");
 
                                     // Start chat session
-                                    Chat chat = new Chat(req.getBorrower(), req.getLender(), out, in);
-                                    req.setChat(chat);
-                                    chat.startChat();
-
-                                    break;
+                                    // (You may need to implement this part based on your requirements)
+                                    // Chat chat = new Chat(borrowerToAccept, lender, out, in);
+                                    // chat.startChat();
+                                } else {
+                                    // Failed to update request status
+                                    out.println("ERROR: Failed to accept the request.");
                                 }
+                            } catch (SQLException e) {
+                                e.printStackTrace();
+                                out.println("ERROR: Failed to accept the request.");
                             }
                             break;
 
@@ -219,19 +227,27 @@ public class Server {
                             String borrowerToReject = tokens[1];
                             int requestIdToReject = Integer.parseInt(tokens[2]);
 
-                            // Find the request in pending requests
-                            Iterator<Request> iteratorReject = pendingRequests.iterator();
-                            while (iteratorReject.hasNext()) {
-                                Request req = iteratorReject.next();
-                                if (req.getBorrower().equals(borrowerToReject) && req.getId() == requestIdToReject) {
-                                    req.setStatus("rejected");
-                                    iteratorReject.remove(); // Remove the request from the pendingRequests list
-                                    rejectedRequests.add(req); // Add the request to the rejectedRequests list
+                            try {
+                                // Update the request status in the database
+                                String updateStatusQuery = "UPDATE requests SET status = 'rejected' WHERE borrower_username = ? AND request_id = ?";
+                                PreparedStatement updateStatement = connection.prepareStatement(updateStatusQuery);
+                                updateStatement.setString(1, borrowerToReject);
+                                updateStatement.setInt(2, requestIdToReject);
+                                int rowsAffected = updateStatement.executeUpdate();
+
+                                if (rowsAffected > 0) {
+                                    // Request status updated successfully
                                     out.println("REQUEST_REJECTED");
 
                                     // Notify borrower
-                                    break;
+                                    // (You may need to implement this part based on your requirements)
+                                } else {
+                                    // Failed to update request status
+                                    out.println("ERROR: Failed to reject the request.");
                                 }
+                            } catch (SQLException e) {
+                                e.printStackTrace();
+                                out.println("ERROR: Failed to reject the request.");
                             }
                             break;
                         case "REQUEST_HISTORY":
