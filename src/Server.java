@@ -152,24 +152,40 @@ public class Server {
                             String lender = tokens[2];
                             String requestedBookTitle = tokens[3];
 
-                            // Find the book in the inventory based on the title
-                            Book requestedBook = null;
-                            for (Book book : bookInventory.values()) {
-                                if (book.getTitle().equalsIgnoreCase(requestedBookTitle)) {
-                                    requestedBook = book;
-                                    break;
-                                }
-                            }
+                            try {
+                                // Query the database to find the requested book by title
+                                String query = "SELECT * FROM books WHERE title = ?";
+                                PreparedStatement statement = connection.prepareStatement(query);
+                                statement.setString(1, requestedBookTitle);
+                                ResultSet resultSet = statement.executeQuery();
 
-                            // Check if the requested book was found
-                            if (requestedBook != null) {
-                                // Create and store the request
-                                int requestId = requestIdCounter++; // Increment the request ID counter
-                                Request request = new Request(requestId, borrower, lender, requestedBook, "pending",out,in);
-                                pendingRequests.add(request); // Add the request to the pendingRequests list
-                                out.println("REQUEST_SUBMITTED " + requestId);
-                            } else {
-                                out.println("ERROR 404: Requested book not found."); // Notify client if the book was not found
+                                if (resultSet.next()) {
+                                    // Book found, extract book details
+                                    int bookId = resultSet.getInt("book_id");
+
+                                    // Create and store the request
+                                    String insertRequestQuery = "INSERT INTO requests (borrower_username, lender_username, book_id, status) VALUES (?, ?, ?, ?)";
+                                    PreparedStatement insertStatement = connection.prepareStatement(insertRequestQuery);
+                                    insertStatement.setString(1, borrower);
+                                    insertStatement.setString(2, lender);
+                                    insertStatement.setInt(3, bookId);
+                                    insertStatement.setString(4, "pending");
+                                    int rowsAffected = insertStatement.executeUpdate();
+
+                                    if (rowsAffected > 0) {
+                                        // Request successfully added to the database
+                                        out.println("REQUEST_SUBMITTED");
+                                    } else {
+                                        // Failed to add request to the database
+                                        out.println("ERROR: Failed to submit the request.");
+                                    }
+                                } else {
+                                    // Book not found
+                                    out.println("ERROR 404: Requested book not found.");
+                                }
+                            } catch (SQLException e) {
+                                e.printStackTrace();
+                                out.println("ERROR: Failed to submit the request.");
                             }
                             break;
 

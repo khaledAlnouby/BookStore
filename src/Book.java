@@ -1,6 +1,7 @@
 public class Book {
     private String lenderUsername; // Add lender's username
 
+    int id;
     private String title;
     private String author;
     private String genre;
@@ -95,4 +96,7 @@ public class Book {
         this.quantity = quantity;
     }
 
+    public void setBookId(int bookId) {
+        this.id= bookId;
+    }
 }
