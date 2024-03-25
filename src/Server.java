@@ -12,8 +12,7 @@ public class Server {
 
     private static Connection connection;
     private static final int PORT = 8000;
-    private static Map<String, String> userCredentials = new HashMap<>();
-    private static Map<Integer, Book> bookInventory = new HashMap<>();
+
     static List<Request> pendingRequests = new ArrayList<>();
     private static List<Request> acceptedRequests = new ArrayList<>();
     private static List<Request> rejectedRequests = new ArrayList<>();
@@ -33,21 +32,21 @@ public class Server {
             try (Connection connection = DriverManager.getConnection(DB_URL , DB_USER,null)){
                 System.out.println("Connected to database.");
 
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                System.out.println("New client connected: " + clientSocket);
+                while (true) {
+                    Socket clientSocket = serverSocket.accept();
+                    System.out.println("New client connected: " + clientSocket);
 
-                // Handle client in a separate thread
-                new ClientHandler(clientSocket, connection).start();
-            }
-        } catch (IOException e) {
-            System.err.println("Error starting the server: " + e.getMessage());
-            e.printStackTrace();
-        } catch (SQLException e) {
+                    // Handle client in a separate thread
+                    new ClientHandler(clientSocket, connection).start();
+                }
+            } catch (IOException e) {
+                System.err.println("Error starting the server: " + e.getMessage());
+                e.printStackTrace();
+            } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
         }
-}
+    }
 
     public static class ClientHandler extends Thread {
         private String loggedInUsername; // Store the username of the logged-in user
@@ -210,8 +209,9 @@ public class Server {
 
                                     // Start chat session
                                     // (You may need to implement this part based on your requirements)
-                                    // Chat chat = new Chat(borrowerToAccept, lender, out, in);
-                                    // chat.startChat();
+
+                                     Chat chat = new Chat(borrowerToAccept, loggedInUsername, out, in);
+                                     chat.startChat();
                                 } else {
                                     // Failed to update request status
                                     out.println("ERROR: Failed to accept the request.");
