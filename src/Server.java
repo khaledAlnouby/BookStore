@@ -18,11 +18,7 @@ public class Server {
     private static List<Request> acceptedRequests = new ArrayList<>();
     private static List<Request> rejectedRequests = new ArrayList<>();
     private static int requestIdCounter = 1; // Initial request ID counter value
-    private static int borrowedBooksCount = 0;
-    private static int availableBooksCount = 0;
-    private static int acceptedRequestsCount = 0;
-    private static int rejectedRequestsCount = 0;
-    private static int pendingRequestsCount = 0;
+
     private static int bookIdCounter = 1;
 
     public static void main(String[] args) throws IOException {
@@ -64,6 +60,7 @@ public class Server {
 
         @Override
         public void run() {
+            String userRole = null;
             try {
                 out = new PrintWriter(clientSocket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -76,28 +73,40 @@ public class Server {
                     // Process the request
                     String[] tokens = inputLine.split(" ");
                     String command = tokens[0];
-
                     switch (command) {
                         case "REGISTER":
                             String name = tokens[1];
                             String newUsername = tokens[2];
                             String newPassword = tokens[3];
-                            registerUser(newUsername, newPassword);
+                            String role; // Declare role variable
+                            if (tokens.length >= 5) {
+                                // Role provided by the user
+                                role = tokens[4];
+                            } else {
+                                // Default role if not provided by the user
+                                role = "user";
+                            }
+                            registerUser(newUsername, newPassword, role);
                             break;
                         case "LOGIN":
                             String enteredUsername = tokens[1];
                             String enteredPassword = tokens[2];
                             loggedInUsername = enteredUsername; // Store the username of the logged-in user
 
-                            // Check credentials in the database
-                            if (checkCredentials(enteredUsername, enteredPassword)) {
+                            // Check credentials in the database and get user role
+                            userRole = checkCredentialsAndGetRole(enteredUsername, enteredPassword);
+
+                            if (userRole != null) {
+                                // Login successful
                                 out.println("Login successful.");
                                 clientWriters.put(enteredUsername, out);
-//                                out.println("Added PrintWriter for user " + enteredUsername + " to clientWriters map.");
                             } else {
+                                // Invalid credentials
                                 out.println("ERROR 401: Invalid username or password Unauthorized.");
                             }
                             break;
+
+
 
                         case "LIST_BOOKS":
                             sendBookListFromDatabase();
@@ -263,8 +272,18 @@ public class Server {
                         case "REQUEST_HISTORY":
                             sendRequestHistory(loggedInUsername);
                            break;
+                        case "GET_LIBRARY_STATISTICS":
+                            // Check if the user is an admin
+                            if ("admin".equals(userRole)) {
+                                // Retrieve and send library statistics to the admin
+                                sendLibraryStatistics();
+                            } else {
+                                out.println("ERROR: Only admins have access to library statistics.");
+                            }
+                            break;
 
                     }
+
 
                 }
             } catch (IOException e) {
@@ -279,6 +298,77 @@ public class Server {
             }
         }
 
+        private void sendLibraryStatistics() {
+            try {
+                // Query the database to retrieve library statistics
+                String query = "SELECT COUNT(*) AS borrowed_books_count FROM requests WHERE status = 'accepted'";
+                PreparedStatement statement = connection.prepareStatement(query);
+                ResultSet resultSet = statement.executeQuery();
+
+                // Initialize variables to store statistics
+                int borrowedBooksCount = 0;
+                int availableBooksCount = 0;
+                int acceptedRequestsCount = 0;
+                int rejectedRequestsCount = 0;
+                int pendingRequestsCount = 0;
+
+                // Retrieve borrowed books count
+                if (resultSet.next()) {
+                    borrowedBooksCount = resultSet.getInt("borrowed_books_count");
+                }
+
+                // Query to count available books
+                query = "SELECT COUNT(*) AS available_books_count FROM books WHERE quantity > 0";
+                statement = connection.prepareStatement(query);
+                resultSet = statement.executeQuery();
+
+                // Retrieve available books count
+                if (resultSet.next()) {
+                    availableBooksCount = resultSet.getInt("available_books_count");
+                }
+
+                // Query to count accepted requests
+                query = "SELECT COUNT(*) AS accepted_requests_count FROM requests WHERE status = 'accepted'";
+                statement = connection.prepareStatement(query);
+                resultSet = statement.executeQuery();
+
+                // Retrieve accepted requests count
+                if (resultSet.next()) {
+                    acceptedRequestsCount = resultSet.getInt("accepted_requests_count");
+                }
+
+                // Query to count rejected requests
+                query = "SELECT COUNT(*) AS rejected_requests_count FROM requests WHERE status = 'rejected'";
+                statement = connection.prepareStatement(query);
+                resultSet = statement.executeQuery();
+
+                // Retrieve rejected requests count
+                if (resultSet.next()) {
+                    rejectedRequestsCount = resultSet.getInt("rejected_requests_count");
+                }
+
+                // Query to count pending requests
+                query = "SELECT COUNT(*) AS pending_requests_count FROM requests WHERE status = 'pending'";
+                statement = connection.prepareStatement(query);
+                resultSet = statement.executeQuery();
+
+                // Retrieve pending requests count
+                if (resultSet.next()) {
+                    pendingRequestsCount = resultSet.getInt("pending_requests_count");
+                }
+
+                // Construct the response with the retrieved statistics
+                String response = String.format("LIBRARY_STATISTICS Borrowed Books: %d, Available Books: %d, Accepted Requests: %d, Rejected Requests: %d, Pending Requests: %d",
+                        borrowedBooksCount, availableBooksCount, acceptedRequestsCount, rejectedRequestsCount, pendingRequestsCount);
+
+                // Send the response to the admin
+                out.println(response);
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("ERROR: Failed to retrieve library statistics.");
+            }
+        }
+
         private void startChatSession(String borrower, String lender) {
 
             // Add both borrowers and lenders to the map of writers
@@ -289,7 +379,7 @@ public class Server {
             chat.startChat();
         }
 
-        private void registerUser(String username, String password) {
+        private void registerUser(String username, String password, String role) {
             try {
                 // Check if the username already exists in the database
                 String checkQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
@@ -304,10 +394,16 @@ public class Server {
                 }
 
                 // If the username is unique, proceed with registration
-                String insertQuery = "INSERT INTO users (username, password) VALUES (?, ?)";
+                String insertQuery;
+                if (role == null || role.isEmpty()) {
+                    // If role is not specified, set it to default value
+                    role = "user";
+                }
+                insertQuery = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
                 PreparedStatement statement = connection.prepareStatement(insertQuery);
                 statement.setString(1, username);
                 statement.setString(2, password);
+                statement.setString(3, role); // Set the role
                 int rowsAffected = statement.executeUpdate();
 
                 if (rowsAffected > 0) {
@@ -322,21 +418,27 @@ public class Server {
             }
         }
 
-        private boolean checkCredentials(String username, String password) {
+
+        private String checkCredentialsAndGetRole(String username, String password) {
             try {
-                String sql = "SELECT * FROM users WHERE username = ? AND password = ?";
+                String sql = "SELECT role FROM users WHERE username = ? AND password = ?";
                 PreparedStatement statement = connection.prepareStatement(sql);
                 statement.setString(1, username);
                 statement.setString(2, password);
                 ResultSet resultSet = statement.executeQuery();
 
-                // If there is at least one row, the credentials are valid
-                return resultSet.next();
+                if (resultSet.next()) {
+                    // If there is at least one row, return the user's role
+                    return resultSet.getString("role");
+                } else {
+                    return null; // Return null if no matching user found
+                }
             } catch (SQLException e) {
                 e.printStackTrace();
-                return false; // Return false in case of any SQL error
+                return null; // Return null in case of any SQL error
             }
         }
+
         private boolean addBookToDatabase(String title, String author, String genre, double price, int quantity, String lenderUsername) {
             try {
                 String sql = "INSERT INTO books (title, author, genre, price, quantity, lender_username) VALUES (?, ?, ?, ?, ?, ?)";
