@@ -641,7 +641,5 @@ public class Server {
                 out.println("ERROR: Invalid command format for viewing book details.");
             }
         }
-
-
     }
 }
