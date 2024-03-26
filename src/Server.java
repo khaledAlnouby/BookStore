@@ -11,15 +11,9 @@ public class Server {
     private static final String DB_URL = "jdbc:mysql://localhost:3306/bookstore";
     private static final String DB_USER = "root";
 
-    private static Connection connection;
     private static final int PORT = 8000;
 
-    static List<Request> pendingRequests = new ArrayList<>();
-    private static List<Request> acceptedRequests = new ArrayList<>();
-    private static List<Request> rejectedRequests = new ArrayList<>();
-    private static int requestIdCounter = 1; // Initial request ID counter value
 
-    private static int bookIdCounter = 1;
 
     public static void main(String[] args) throws IOException {
 
@@ -105,9 +99,6 @@ public class Server {
                                 out.println("ERROR 401: Invalid username or password Unauthorized.");
                             }
                             break;
-
-
-
                         case "LIST_BOOKS":
                             sendBookListFromDatabase();
                             break;
@@ -217,6 +208,11 @@ public class Server {
 
                                 if (rowsAffected > 0) {
                                     // Request status updated successfully
+                                    // Decrement the quantity of the book in the database
+                                    String decrementQuantityQuery = "UPDATE books SET quantity = quantity - 1 WHERE book_id = (SELECT book_id FROM requests WHERE request_id = ?)";
+                                    PreparedStatement decrementStatement = connection.prepareStatement(decrementQuantityQuery);
+                                    decrementStatement.setInt(1, requestId);
+                                    decrementStatement.executeUpdate(); // Decrease the quantity
                                     out.println("REQUEST_ACCEPTED");
                                     // Notify lender
                                     out.println("[Server]: Request accepted. You can now chat with " + borrowerToAccept + ".");
@@ -259,7 +255,6 @@ public class Server {
                                     out.println("REQUEST_REJECTED");
 
                                     // Notify borrower
-                                    // (You may need to implement this part based on your requirements)
                                 } else {
                                     // Failed to update request status
                                     out.println("ERROR: Failed to reject the request.");
