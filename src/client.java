@@ -15,7 +15,6 @@ public class client {
              BufferedReader stdIn = new BufferedReader(new InputStreamReader(System.in))) {
 
             System.out.println("Connected to server");
-            boolean requestHistoryReceived = false;
 
             String userInput;
             while (true) {
