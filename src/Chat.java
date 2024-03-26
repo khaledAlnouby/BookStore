@@ -27,7 +27,7 @@ public class Chat {
                     break;
                 }
                 sendMessageToRecipient(lender, message);
-                receiveMessage(message); // Display the message to borrower
+                receiveMessage(message);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -41,7 +41,7 @@ public class Chat {
         if (recipientWriter != null) {
             recipientWriter.println("[" + lender + "]: " + message);
         } else {
-            out.println("ERROR: Failed to send message. Recipient not found.");
+            out.println("ERROR: Failed to send message.");
         }
     }
 

@@ -18,7 +18,7 @@ public class client {
                 // Read user input
                 userInput = stdIn.readLine();
                 if (userInput == null) {
-                    break; //  if input is null end of input stream
+                    break;
                 }
                 // Send user input to server
                 out.println(userInput);

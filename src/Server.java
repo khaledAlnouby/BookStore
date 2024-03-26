@@ -149,7 +149,7 @@ public class Server {
                                 ResultSet resultSet = statement.executeQuery();
 
                                 if (resultSet.next()) {
-                                    // extract thw book ID
+                                    // extract book ID
                                     int bookId = resultSet.getInt("book_id");
 
                                     // Save the request in the database
@@ -207,7 +207,6 @@ public class Server {
                                     } else {
                                         out.println("ERROR: Failed to notify borrower.");
                                     }
-
                                     startChatSession(borrowerToAccept, loggedInUsername);
                                 } else {
                                     // Failed to update request status
@@ -252,13 +251,11 @@ public class Server {
                             if ("admin".equals(userRole)) {
                                 sendLibraryStatistics();
                             } else {
-                                out.println("ERROR: Only admins have access to library statistics.");
+                                out.println("ERROR: Only admins have access to see library statistics.");
                             }
                             break;
 
                     }
-
-
                 }
             } catch (IOException e) {
                 System.err.println("Error handling client request: " + e.getMessage());
@@ -338,12 +335,10 @@ public class Server {
         }
 
         private void startChatSession(String borrower, String lender) {
-
             // Add both borrowers and lenders to the map of writers
             Chat chat = new Chat(borrower, lender, out, in);
 //            clientWriters.put(borrower, out);
 //            clientWriters.put(lender, out);
-            // Start chat session
             chat.startChat();
         }
 
@@ -361,10 +356,9 @@ public class Server {
                     return;
                 }
 
-                // If the username is unique, proceed with registration
                 String insertQuery;
                 if (role == null || role.isEmpty()) {
-                    // If role is not specified, set it to default value
+                    // If role is not assigned, set it to default value as user
                     role = "user";
                 }
                 insertQuery = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
@@ -399,7 +393,7 @@ public class Server {
                     // If there is at least one row, return the user's role
                     return resultSet.getString("role");
                 } else {
-                    return null; // Return null if no matching user found
+                    return null; // Return null if no matching user
                 }
             } catch (SQLException e) {
                 e.printStackTrace();
@@ -422,7 +416,7 @@ public class Server {
                 return rowsAffected > 0;
             } catch (SQLException e) {
                 e.printStackTrace();
-                return false; // Return false in case of any SQL error
+                return false;
             }
         }
         private boolean removeBookFromDatabase(String title, String author) {
@@ -436,7 +430,7 @@ public class Server {
                 return rowsAffected > 0;
             } catch (SQLException e) {
                 e.printStackTrace();
-                return false; // Return false in case of any SQL error
+                return false;
             }
         }
 
@@ -464,7 +458,7 @@ public class Server {
                 out.println(response.toString().trim()); // Send the response
             } catch (SQLException e) {
                 e.printStackTrace();
-                out.println("Error fetching book list from the database.");
+                out.println(" fetching book list from the database.");
             }
         }
 
@@ -477,7 +471,7 @@ public class Server {
                 sendMatchingBooks(resultSet);
             } catch (SQLException e) {
                 e.printStackTrace();
-                out.println("Error occurred during book search by genre.");
+                out.println(" occurred during book search by genre.");
             }
         }
 
@@ -497,11 +491,9 @@ public class Server {
                 out.println(response.toString().trim());
             } catch (SQLException e) {
                 e.printStackTrace();
-                out.println("Error occurred while processing search results.");
+                out.println(" occurred while processing search results.");
             }
         }
-
-
 
         private void sendRequestHistory(String username) {
             try {
@@ -532,7 +524,7 @@ public class Server {
                 out.println(response.toString().trim());
             } catch (SQLException e) {
                 e.printStackTrace();
-                out.println("ERROR: Failed to retrieve request history from the database.");
+                out.println(" Failed to retrieve request history from the database.");
             }
         }
 
@@ -556,15 +548,14 @@ public class Server {
                     out.println("BOOK_DETAILS Title: " + title + ", Author: " + author +
                             ", Genre: " + genre + ", Price: $" + price + ", Quantity: " + quantity);
                 } else {
-                    // Book not found
                     out.println("ERROR 404: Book not found.");
                 }
             } catch (SQLException e) {
                 e.printStackTrace();
-                out.println("ERROR: Failed to fetch book details from the database.");
+                out.println(" Failed to fetch book details from the database.");
             } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
                 // Handle invalid input format
-                out.println("ERROR: Invalid command format for viewing book details.");
+                out.println(" Invalid command format for viewing book details.");
             }
         }
         private void searchByTitle(String[] tokens) {
@@ -589,15 +580,14 @@ public class Server {
                     out.println("BOOK_DETAILS Title: " + title + ", Author: " + author +
                             ", Genre: " + genre + ", Price: $" + price + ", Quantity: " + quantity);
                 } else {
-                    // Book not found
-                    out.println("ERROR 404: Book not found.");
+                    out.println(" 404: Book not found.");
                 }
             } catch (SQLException e) {
                 e.printStackTrace();
-                out.println("ERROR: Failed to fetch book details from the database.");
+                out.println(" Failed to fetch book details from the database.");
             } catch (ArrayIndexOutOfBoundsException e) {
                 // Handle invalid input format
-                out.println("ERROR: Invalid command format for viewing book details.");
+                out.println("Invalid command format for viewing book details.");
             }
         }
     }

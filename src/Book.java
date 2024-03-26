@@ -71,7 +71,7 @@ public class Book {
     }
     public void setLenderUsername(String lenderUsername) {
         if (lenderUsername == null || lenderUsername.isEmpty()) {
-            throw new IllegalArgumentException("Author cannot be null or empty");
+            throw new IllegalArgumentException("lenderUsername cannot be null or empty");
         }
         this.lenderUsername = lenderUsername;
     }
