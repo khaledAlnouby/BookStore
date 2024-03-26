@@ -103,11 +103,11 @@ public class Server {
                             sendBookListFromDatabase();
                             break;
                         case "SEARCH_AUTHOR":
-                            // Handle searching by author
+                            // searching by author
                             searchBooksByAuthor(tokens[1]);
                             break;
                         case "SEARCH_GENRE":
-                            // Handle searching by genre
+                            // searching by genre
                             searchBooksByGenre(tokens[1]);
                             break;
 
@@ -115,9 +115,9 @@ public class Server {
                             // Handle viewing detailed information
                             viewBookDetails(tokens);
                             break;
-                        case "VIEW_DETAILS_TITLE":
+                        case "SEARCH_TITLE":
                             // Handle viewing detailed information by book title
-                            viewBookDetailsByTitle(tokens);
+                            searchByTitle(tokens);
                             break;
                         case "ADD_BOOK":
                             // Extract book details from tokens
@@ -608,7 +608,7 @@ public class Server {
                 out.println("ERROR: Invalid command format for viewing book details.");
             }
         }
-        private void viewBookDetailsByTitle(String[] tokens) {
+        private void searchByTitle(String[] tokens) {
             try {
                 // Extract the book title from tokens
                 String titleToSearch = tokens[1];
