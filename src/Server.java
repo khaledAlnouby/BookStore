@@ -7,6 +7,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class Server {
+    static Map<String, PrintWriter> clientWriters = new HashMap<>();
     private static final String DB_URL = "jdbc:mysql://localhost:3306/bookstore";
     private static final String DB_USER = "root";
 
@@ -91,6 +92,8 @@ public class Server {
                             // Check credentials in the database
                             if (checkCredentials(enteredUsername, enteredPassword)) {
                                 out.println("Login successful.");
+                                clientWriters.put(enteredUsername, out);
+//                                out.println("Added PrintWriter for user " + enteredUsername + " to clientWriters map.");
                             } else {
                                 out.println("ERROR 401: Invalid username or password Unauthorized.");
                             }
@@ -206,12 +209,19 @@ public class Server {
                                 if (rowsAffected > 0) {
                                     // Request status updated successfully
                                     out.println("REQUEST_ACCEPTED");
+                                    // Notify lender
+                                    out.println("[Server]: Request accepted. You can now chat with " + borrowerToAccept + ".");
+
+                                    // Notify borrower
+                                    PrintWriter borrowerWriter = clientWriters.get(borrowerToAccept);
+                                    if (borrowerWriter != null) {
+                                        borrowerWriter.println("[Server]: Your request has been accepted by " + loggedInUsername + ". You can now start chatting.");
+                                    } else {
+                                        out.println("ERROR: Failed to notify borrower. Borrower not found.");
+                                    }
 
                                     // Start chat session
-                                    // (You may need to implement this part based on your requirements)
-
-                                     Chat chat = new Chat(borrowerToAccept, loggedInUsername, out, in);
-                                     chat.startChat();
+                                    startChatSession(borrowerToAccept, loggedInUsername);
                                 } else {
                                     // Failed to update request status
                                     out.println("ERROR: Failed to accept the request.");
@@ -252,8 +262,7 @@ public class Server {
                             break;
                         case "REQUEST_HISTORY":
                             sendRequestHistory(loggedInUsername);
-                            break;
-
+                           break;
 
                     }
 
@@ -268,6 +277,16 @@ public class Server {
                     e.printStackTrace();
                 }
             }
+        }
+
+        private void startChatSession(String borrower, String lender) {
+
+            // Add both borrowers and lenders to the map of writers
+            Chat chat = new Chat(borrower, lender, out, in);
+//            clientWriters.put(borrower, out);
+//            clientWriters.put(lender, out);
+            // Start chat session
+            chat.startChat();
         }
 
         private void registerUser(String username, String password) {
@@ -427,27 +446,38 @@ public class Server {
 
 
         private void sendRequestHistory(String username) {
-            StringBuilder response = new StringBuilder("REQUEST_HISTORY\n");
-            // Iterate over pending requests
-            for (Request req : pendingRequests) {
-                if (req.getBorrower().equals(username) || req.getLender().equals(username)) {
-                    response.append(req.getId()).append(" ").append(req.getStatus()).append("\n");
+            try {
+                StringBuilder response = new StringBuilder("REQUEST_HISTORY\n");
+
+                // Query the database to retrieve the request history for the user
+                String query = "SELECT * FROM requests WHERE borrower_username = ? OR lender_username = ?";
+                PreparedStatement statement = connection.prepareStatement(query);
+                statement.setString(1, username);
+                statement.setString(2, username);
+                ResultSet resultSet = statement.executeQuery();
+
+                // Process the ResultSet and construct the response
+                while (resultSet.next()) {
+                    int requestId = resultSet.getInt("request_id");
+                    String borrower = resultSet.getString("borrower_username");
+                    String lender = resultSet.getString("lender_username");
+                    String bookTitle = resultSet.getString("book_title");
+                    String status = resultSet.getString("status");
+                    response.append("Request ID: ").append(requestId)
+                            .append(", Borrower: ").append(borrower)
+                            .append(", Lender: ").append(lender)
+                            .append(", Book Title: ").append(bookTitle)
+                            .append(", Status: ").append(status)
+                            .append("\n");
                 }
+
+                out.println(response.toString().trim());
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("ERROR: Failed to retrieve request history from the database.");
             }
-            // Iterate over accepted requests
-            for (Request req : acceptedRequests) {
-                if (req.getBorrower().equals(username) || req.getLender().equals(username)) {
-                    response.append(req.getId()).append(" ").append(req.getStatus()).append("\n");
-                }
-            }
-            // Iterate over rejected requests
-            for (Request req : rejectedRequests) {
-                if (req.getBorrower().equals(username) || req.getLender().equals(username)) {
-                    response.append(req.getId()).append(" ").append(req.getStatus()).append("\n");
-                }
-            }
-            out.println(response.toString().trim());
         }
+
         private void viewBookDetails(String[] tokens) {
             try {
                 // Extract the book ID from tokens

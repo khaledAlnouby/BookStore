@@ -18,25 +18,31 @@ public class Chat {
 
     public void startChat() {
         try {
-            while (true) {
-                // Receive a chat message from the client (lender)
-                String message = in.readLine();
-                if (message == null || message.equals("END_CHAT")) {
+            out.println("[Server]: You are now chatting with " + borrower);
+            out.println("[Server]: Type 'exit' to end the chat.");
+
+            String message;
+            while ((message = in.readLine()) != null) {
+                if (message.equalsIgnoreCase("exit")) {
                     break;
                 }
-                // Send the message to the borrower
-                sendMessage(message);
+                sendMessageToRecipient(lender, message);
+                receiveMessage(message); // Display the message to borrower
             }
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            // Close resources (if necessary)
             close();
         }
     }
 
-    public void sendMessage(String message) {
-        out.println("[" + lender + "]: " + message);
+    private void sendMessageToRecipient(String recipient, String message) {
+        PrintWriter recipientWriter = Server.clientWriters.get(recipient);
+        if (recipientWriter != null) {
+            recipientWriter.println("[" + lender + "]: " + message);
+        } else {
+            out.println("ERROR: Failed to send message. Recipient not found.");
+        }
     }
 
     public void receiveMessage(String message) {
