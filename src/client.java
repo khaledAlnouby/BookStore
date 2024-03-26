@@ -1,8 +1,5 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.net.Socket;
+import java.io.*;
 
 public class client {
     public static void main(String[] args) {
@@ -21,19 +18,14 @@ public class client {
                 // Read user input
                 userInput = stdIn.readLine();
                 if (userInput == null) {
-                    break; // Exit loop if input is null (end of input stream)
+                    break; //  if input is null end of input stream
                 }
-
                 // Send user input to server
                 out.println(userInput);
-
-                // Receive and print response from server
+                // Receive response from server
                 String response = in.readLine();
                 System.out.println("Response from server: " + response);
-
-
             }
-
         } catch (IOException e) {
             System.err.println("Error communicating with server: " + e.getMessage());
             e.printStackTrace();

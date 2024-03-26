@@ -1,6 +1,5 @@
 public class Book {
-    private String lenderUsername; // Add lender's username
-
+    private String lenderUsername;
     int id;
     private String title;
     private String author;
@@ -60,7 +59,6 @@ public class Book {
     // Setters
     public void setTitle(String title) {
         if (title == null || title.isEmpty()) {
-            throw new IllegalArgumentException("Title cannot be null or empty");
         }
         this.title = title;
     }

@@ -2,9 +2,7 @@ import java.io.*;
 import java.net.*;
 import java.sql.*;
 import java.util.*;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+
 
 public class Server {
     static Map<String, PrintWriter> clientWriters = new HashMap<>();
@@ -40,11 +38,11 @@ public class Server {
     }
 
     public static class ClientHandler extends Thread {
-        private String loggedInUsername; // Store the username of the logged-in user
+        private String loggedInUsername;
         private Socket clientSocket;
         private PrintWriter out;
         private BufferedReader in;
-        private Connection connection; // Add connection field
+        private Connection connection;
 
 
         public ClientHandler(Socket socket ,Connection connection) {
@@ -59,7 +57,7 @@ public class Server {
                 out = new PrintWriter(clientSocket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
-                // Read and process client requests
+                // Read client requests
                 String inputLine;
                 while ((inputLine = in.readLine()) != null) {
                     System.out.println("Received from client: " + inputLine);
@@ -72,7 +70,7 @@ public class Server {
                             String name = tokens[1];
                             String newUsername = tokens[2];
                             String newPassword = tokens[3];
-                            String role; // Declare role variable
+                            String role;
                             if (tokens.length >= 5) {
                                 // Role provided by the user
                                 role = tokens[4];
@@ -87,59 +85,50 @@ public class Server {
                             String enteredPassword = tokens[2];
                             loggedInUsername = enteredUsername; // Store the username of the logged-in user
 
-                            // Check credentials in the database and get user role
+                            // Check credentials in the database
                             userRole = checkCredentialsAndGetRole(enteredUsername, enteredPassword);
 
                             if (userRole != null) {
                                 // Login successful
-                                out.println("Login successful.");
+                                out.println("Login successfully .");
                                 clientWriters.put(enteredUsername, out);
                             } else {
                                 // Invalid credentials
-                                out.println("ERROR 401: Invalid username or password Unauthorized.");
+                                out.println("ERROR 401: Invalid username or password .");
                             }
                             break;
                         case "LIST_BOOKS":
                             sendBookListFromDatabase();
                             break;
-                        case "SEARCH_AUTHOR":
-                            // searching by author
-                            searchBooksByAuthor(tokens[1]);
-                            break;
                         case "SEARCH_GENRE":
                             // searching by genre
                             searchBooksByGenre(tokens[1]);
                             break;
-
                         case "VIEW_DETAILS":
-                            // Handle viewing detailed information
+                            // view detailed info by book id
                             viewBookDetails(tokens);
                             break;
                         case "SEARCH_TITLE":
-                            // Handle viewing detailed information by book title
+                            // view detailed info by book title
                             searchByTitle(tokens);
                             break;
+
                         case "ADD_BOOK":
-                            // Extract book details from tokens
                             String title = tokens[1];
                             String author = tokens[2];
                             String genre = tokens[3];
                             double price = Double.parseDouble(tokens[4]);
                             int quantity = Integer.parseInt(tokens[5]);
-
-                            // Insert the book into the database
+                            // add the book in the database
                             if (addBookToDatabase(title, author, genre, price, quantity, loggedInUsername)) {
                                 out.println("BOOK_ADDED");
                             } else {
                                 out.println("Error adding book to the database.");
                             }
                             break;
-
                         case "REMOVE_BOOK":
-                            // Extract book details from tokens
                             String titleToRemove = tokens[1];
                             String authorToRemove = tokens[2];
-
                             // Remove the book from the database
                             if (removeBookFromDatabase(titleToRemove, authorToRemove)) {
                                 out.println("BOOK_REMOVED Successfully ");
@@ -149,23 +138,21 @@ public class Server {
                             break;
 
                         case "SUBMIT_REQUEST":
-                            // Extract request details from tokens
                             String borrower = tokens[1];
                             String lender = tokens[2];
                             String requestedBookTitle = tokens[3];
 
                             try {
-                                // Query the database to find the requested book by title
                                 String query = "SELECT book_id FROM books WHERE title = ?";
                                 PreparedStatement statement = connection.prepareStatement(query);
                                 statement.setString(1, requestedBookTitle);
                                 ResultSet resultSet = statement.executeQuery();
 
                                 if (resultSet.next()) {
-                                    // Book found, extract book ID
+                                    // extract thw book ID
                                     int bookId = resultSet.getInt("book_id");
 
-                                    // Create and store the request
+                                    // Save the request in the database
                                     String insertRequestQuery = "INSERT INTO requests (borrower_username, lender_username, book_id, book_title, status) VALUES (?, ?, ?, ?, ?)";
                                     PreparedStatement insertStatement = connection.prepareStatement(insertRequestQuery);
                                     insertStatement.setString(1, borrower);
@@ -176,10 +163,9 @@ public class Server {
                                     int rowsAffected = insertStatement.executeUpdate();
 
                                     if (rowsAffected > 0) {
-                                        // Request successfully added to the database
                                         out.println("REQUEST_SUBMITTED");
                                     } else {
-                                        // Failed to add request to the database
+                                        // Failed to add it to the database
                                         out.println("ERROR: Failed to submit the request.");
                                     }
                                 } else {
@@ -191,15 +177,12 @@ public class Server {
                                 out.println("ERROR: Failed to submit the request.");
                             }
                             break;
-
-
                         case "ACCEPT_REQUEST":
-                            // Extract request details from tokens
                             String borrowerToAccept = tokens[1];
                             int requestId = Integer.parseInt(tokens[2]);
 
                             try {
-                                // Update the request status in the database
+                                // Update request status in the database
                                 String updateStatusQuery = "UPDATE requests SET status = 'accepted' WHERE borrower_username = ? AND request_id = ?";
                                 PreparedStatement updateStatement = connection.prepareStatement(updateStatusQuery);
                                 updateStatement.setString(1, borrowerToAccept);
@@ -207,13 +190,13 @@ public class Server {
                                 int rowsAffected = updateStatement.executeUpdate();
 
                                 if (rowsAffected > 0) {
-                                    // Request status updated successfully
                                     // Decrement the quantity of the book in the database
                                     String decrementQuantityQuery = "UPDATE books SET quantity = quantity - 1 WHERE book_id = (SELECT book_id FROM requests WHERE request_id = ?)";
-                                    PreparedStatement decrementStatement = connection.prepareStatement(decrementQuantityQuery);
-                                    decrementStatement.setInt(1, requestId);
-                                    decrementStatement.executeUpdate(); // Decrease the quantity
+                                    PreparedStatement decrementing = connection.prepareStatement(decrementQuantityQuery);
+                                    decrementing.setInt(1, requestId);
+                                    decrementing.executeUpdate(); // Decrease the quantity
                                     out.println("REQUEST_ACCEPTED");
+
                                     // Notify lender
                                     out.println("[Server]: Request accepted. You can now chat with " + borrowerToAccept + ".");
 
@@ -222,10 +205,9 @@ public class Server {
                                     if (borrowerWriter != null) {
                                         borrowerWriter.println("[Server]: Your request has been accepted by " + loggedInUsername + ". You can now start chatting.");
                                     } else {
-                                        out.println("ERROR: Failed to notify borrower. Borrower not found.");
+                                        out.println("ERROR: Failed to notify borrower.");
                                     }
 
-                                    // Start chat session
                                     startChatSession(borrowerToAccept, loggedInUsername);
                                 } else {
                                     // Failed to update request status
@@ -238,7 +220,6 @@ public class Server {
                             break;
 
                         case "REJECT_REQUEST":
-                            // Extract request details from tokens
                             String borrowerToReject = tokens[1];
                             int requestIdToReject = Integer.parseInt(tokens[2]);
 
@@ -254,7 +235,6 @@ public class Server {
                                     // Request status updated successfully
                                     out.println("REQUEST_REJECTED");
 
-                                    // Notify borrower
                                 } else {
                                     // Failed to update request status
                                     out.println("ERROR: Failed to reject the request.");
@@ -270,7 +250,6 @@ public class Server {
                         case "GET_LIBRARY_STATISTICS":
                             // Check if the user is an admin
                             if ("admin".equals(userRole)) {
-                                // Retrieve and send library statistics to the admin
                                 sendLibraryStatistics();
                             } else {
                                 out.println("ERROR: Only admins have access to library statistics.");
@@ -295,64 +274,58 @@ public class Server {
 
         private void sendLibraryStatistics() {
             try {
-                // Query the database to retrieve library statistics
+                // GET library statistics
                 String query = "SELECT COUNT(*) AS borrowed_books_count FROM requests WHERE status = 'accepted'";
                 PreparedStatement statement = connection.prepareStatement(query);
                 ResultSet resultSet = statement.executeQuery();
 
-                // Initialize variables to store statistics
                 int borrowedBooksCount = 0;
                 int availableBooksCount = 0;
                 int acceptedRequestsCount = 0;
                 int rejectedRequestsCount = 0;
                 int pendingRequestsCount = 0;
 
-                // Retrieve borrowed books count
                 if (resultSet.next()) {
                     borrowedBooksCount = resultSet.getInt("borrowed_books_count");
                 }
 
-                // Query to count available books
+                // count available books
                 query = "SELECT COUNT(*) AS available_books_count FROM books WHERE quantity > 0";
                 statement = connection.prepareStatement(query);
                 resultSet = statement.executeQuery();
 
-                // Retrieve available books count
+                // GET available books count
                 if (resultSet.next()) {
                     availableBooksCount = resultSet.getInt("available_books_count");
                 }
 
-                // Query to count accepted requests
+                // count accepted requests
                 query = "SELECT COUNT(*) AS accepted_requests_count FROM requests WHERE status = 'accepted'";
                 statement = connection.prepareStatement(query);
                 resultSet = statement.executeQuery();
 
-                // Retrieve accepted requests count
                 if (resultSet.next()) {
                     acceptedRequestsCount = resultSet.getInt("accepted_requests_count");
                 }
 
-                // Query to count rejected requests
+                //  count rejected requests
                 query = "SELECT COUNT(*) AS rejected_requests_count FROM requests WHERE status = 'rejected'";
                 statement = connection.prepareStatement(query);
                 resultSet = statement.executeQuery();
 
-                // Retrieve rejected requests count
                 if (resultSet.next()) {
                     rejectedRequestsCount = resultSet.getInt("rejected_requests_count");
                 }
 
-                // Query to count pending requests
+                //  count pending requests
                 query = "SELECT COUNT(*) AS pending_requests_count FROM requests WHERE status = 'pending'";
                 statement = connection.prepareStatement(query);
                 resultSet = statement.executeQuery();
 
-                // Retrieve pending requests count
                 if (resultSet.next()) {
                     pendingRequestsCount = resultSet.getInt("pending_requests_count");
                 }
 
-                // Construct the response with the retrieved statistics
                 String response = String.format("LIBRARY_STATISTICS Borrowed Books: %d, Available Books: %d, Accepted Requests: %d, Rejected Requests: %d, Pending Requests: %d",
                         borrowedBooksCount, availableBooksCount, acceptedRequestsCount, rejectedRequestsCount, pendingRequestsCount);
 
@@ -430,7 +403,7 @@ public class Server {
                 }
             } catch (SQLException e) {
                 e.printStackTrace();
-                return null; // Return null in case of any SQL error
+                return null;
             }
         }
 
@@ -492,18 +465,6 @@ public class Server {
             } catch (SQLException e) {
                 e.printStackTrace();
                 out.println("Error fetching book list from the database.");
-            }
-        }
-        private void searchBooksByAuthor(String authorToSearch) {
-            try {
-                String sql = "SELECT * FROM books WHERE author LIKE ?";
-                PreparedStatement statement = connection.prepareStatement(sql);
-                statement.setString(1, "%" + authorToSearch + "%");
-                ResultSet resultSet = statement.executeQuery();
-                sendMatchingBooks(resultSet);
-            } catch (SQLException e) {
-                e.printStackTrace();
-                out.println("Error occurred during book search by author.");
             }
         }
 
@@ -577,7 +538,6 @@ public class Server {
 
         private void viewBookDetails(String[] tokens) {
             try {
-                // Extract the book ID from tokens
                 int bookId = Integer.parseInt(tokens[1]);
 
                 // Query the database to get book details
@@ -587,7 +547,6 @@ public class Server {
                 ResultSet resultSet = statement.executeQuery();
 
                 if (resultSet.next()) {
-                    // Book found, send detailed information to the client
                     String title = resultSet.getString("title");
                     String author = resultSet.getString("author");
                     String genre = resultSet.getString("genre");
