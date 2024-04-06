@@ -112,6 +112,10 @@ public class Server {
                             // view detailed info by book title
                             searchByTitle(tokens);
                             break;
+                        case "SEARCH_AUTHOR":
+                            searchBooksByAuthor(tokens[1]);
+                            break;
+
 
                         case "ADD_BOOK":
                             String title = tokens[1];
@@ -268,6 +272,20 @@ public class Server {
                 }
             }
         }
+
+        private void searchBooksByAuthor(String authorToSearch) {
+            try {
+                String sql = "SELECT * FROM books WHERE author LIKE ?";
+                PreparedStatement statement = connection.prepareStatement(sql);
+                statement.setString(1, "%" + authorToSearch + "%");
+                ResultSet resultSet = statement.executeQuery();
+                sendMatchingBooks(resultSet);
+            } catch (SQLException e) {
+                e.printStackTrace();
+                out.println("Error occurred during book search by author.");
+            }
+        }
+
 
         private void sendLibraryStatistics() {
             try {
